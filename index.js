@@ -30,6 +30,16 @@ function runLilyPond(outputDir, filename) {
   });
 }
 
+function sendPDFResponse(pdfFilePath) {
+  // Read the PDF file
+  const pdfContent = fs.readFileSync(pdfFilePath);
+
+  // Convert PDF content to base64-encoded string
+  const pdfBase64 = pdfContent.toString("base64");
+
+  return pdfBase64;
+}
+
 // Function to run Audiveris batch command
 function runAudiverisBatch(inputFile, outputDir) {
   const audiverisPath = path.resolve(
@@ -511,9 +521,11 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     fs.writeFileSync(filename, lilypond_code);
     runLilyPond("pdf_output", "here.ly");
 
-    console.log(lilypond_code);
+    const pdfFilePath = "pdf_output/here.pdf";
+    const base6 = sendPDFResponse(pdfFilePath);
 
-    res.json({ outputFiles, notes });
+    console.log(lilypond_code);
+    res.json({ outputFiles, notes, base6, pdfFilePath });
   } catch (error) {
     console.error("Error running Audiveris:", error);
     res
