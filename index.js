@@ -1,25 +1,41 @@
-const express = require('express');
-const multer = require('multer');
-const cors = require('cors');
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
 const app = express();
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const AdmZip = require('adm-zip');
-const xml2js = require('xml2js');
-const e = require('express');
+const { exec } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const AdmZip = require("adm-zip");
+const xml2js = require("xml2js");
+const e = require("express");
 
 // Enable Cross-Origin Resource Sharing (CORS)
 app.use(cors());
 
 // Multer configuration for handling file uploads
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ dest: "uploads/" });
 
-
+//lilypond
+function runLilyPond(outputDir, filename) {
+  const command = `"lilypond" -o ${outputDir} ${filename}`;
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.log(error);
+        reject(error);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
 
 // Function to run Audiveris batch command
 function runAudiverisBatch(inputFile, outputDir) {
-  const audiverisPath = path.resolve(__dirname, 'Audiveris/Audiveris/bin/Audiveris');
+  const audiverisPath = path.resolve(
+    __dirname,
+    "Audiveris/Audiveris/bin/Audiveris"
+  );
   const command = `"${audiverisPath}" -export -output ${outputDir} -batch ${inputFile}`;
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
@@ -48,18 +64,18 @@ function deleteFiles(files) {
 function extractAndDeleteMxlFiles(outputDir) {
   const files = fs.readdirSync(outputDir);
   files.forEach((file) => {
-    if (path.extname(file) === '.mxl') {
+    if (path.extname(file) === ".mxl") {
       const mxlPath = path.join(outputDir, file);
       const zip = new AdmZip(mxlPath);
-      const extractedDir = path.join(outputDir, path.basename(file, '.mxl'));
+      const extractedDir = path.join(outputDir, path.basename(file, ".mxl"));
       zip.extractAllTo(extractedDir, true);
       fs.unlinkSync(mxlPath);
 
-       // Delete the META-INF folder if it exists
-       const metaInfPath = path.join(extractedDir, 'META-INF');
-       if (fs.existsSync(metaInfPath)) {
-         fs.rmdirSync(metaInfPath, { recursive: true });
-       }
+      // Delete the META-INF folder if it exists
+      const metaInfPath = path.join(extractedDir, "META-INF");
+      if (fs.existsSync(metaInfPath)) {
+        fs.rmdirSync(metaInfPath, { recursive: true });
+      }
     }
   });
 }
@@ -67,7 +83,7 @@ function extractAndDeleteMxlFiles(outputDir) {
 // Function to parse MusicXML and extract notes
 function parseMusicXML(musicXMLFilePath) {
   return new Promise((resolve, reject) => {
-    fs.readFile(musicXMLFilePath, 'utf-8', (error, data) => {
+    fs.readFile(musicXMLFilePath, "utf-8", (error, data) => {
       if (error) {
         reject(error);
       } else {
@@ -75,42 +91,76 @@ function parseMusicXML(musicXMLFilePath) {
           if (parseError) {
             reject(parseError);
           } else {
-            const parts = result['score-partwise']['part'];
+            const parts = result["score-partwise"]["part"];
 
             // Array to hold all measures from all parts
             const allNotesWithMeasureData = [];
 
             // Loop through all parts
             parts.forEach((part) => {
-              const measures = part['measure'];
+              const measures = part["measure"];
 
               // Loop through all measures of the current part
               measures.forEach((measure) => {
                 const measureData = {
                   partId: part.$.id, // Part ID
                   number: measure.$.number, // Measure number
-                  attributes: measure['attributes'], // Measure attributes
+                  attributes: measure["attributes"], // Measure attributes
                   notes: [], // Array to hold notes and rests in the measure
                 };
 
-                const notes = measure['note'];
+                const notes = measure["note"];
                 if (Array.isArray(notes)) {
                   notes.forEach((note) => {
                     if (note.rest) {
                       // Handle rests (no pitch, type, beam, or chord for rests)
-                      measureData.notes.push({ rest: true, duration: note.duration});
+                      measureData.notes.push({
+                        rest: true,
+                        duration: note.duration,
+                      });
                     } else {
-                      const { pitch, type, beam, staff, chord, dot, accidental, voice } = note; // Extract desired note attributes
-                      measureData.notes.push({ pitch, type, beam, staff, chord, dot, accidental, voice });
+                      const {
+                        pitch,
+                        type,
+                        beam,
+                        staff,
+                        chord,
+                        dot,
+                        accidental,
+                        voice,
+                      } = note; // Extract desired note attributes
+                      measureData.notes.push({
+                        pitch,
+                        type,
+                        beam,
+                        staff,
+                        chord,
+                        dot,
+                        accidental,
+                        voice,
+                      });
                     }
                   });
                 } else {
                   // For a single note or rest
                   if (notes.rest) {
-                    measureData.notes.push({ rest: true, duration: notes.duration });
+                    measureData.notes.push({
+                      rest: true,
+                      duration: notes.duration,
+                    });
                   } else {
-                    const { pitch, type, beam, staff, chord, dot, voice } = notes; // Extract desired note attributes
-                    measureData.notes.push({ pitch, type, beam, staff, chord, dot, accidental, voice });
+                    const { pitch, type, beam, staff, chord, dot, voice } =
+                      notes; // Extract desired note attributes
+                    measureData.notes.push({
+                      pitch,
+                      type,
+                      beam,
+                      staff,
+                      chord,
+                      dot,
+                      accidental,
+                      voice,
+                    });
                   }
                 }
                 console.log(JSON.stringify(measureData));
@@ -141,10 +191,10 @@ function removeCharacter(str, char) {
 // This will create and return a string variable that will include the note's step, octave, chord info, dot info, and type info in the correct format.
 
 function noteToLilypond(note) {
-  let lilypondNote = '';
+  let lilypondNote = "";
 
   if (note.rest) {
-    lilypondNote += 'r'; // Rest
+    lilypondNote += "r"; // Rest
   } else {
     // Handle pitch
     const { pitch } = note;
@@ -155,29 +205,29 @@ function noteToLilypond(note) {
     //switch used to specify the octave to lilypond using the octave child in the note.
     switch (parseInt(octave)) {
       case 1:
-        octaveNum = ',,';
+        octaveNum = ",,";
         break;
       case 2:
-        octaveNum = ',';
+        octaveNum = ",";
         break;
       case 3:
-        octaveNum = '';
+        octaveNum = "";
         break;
       case 4:
-        octaveNum = '\'';
+        octaveNum = "'";
         break;
       case 5:
-        octaveNum = '\'\''
+        octaveNum = "''";
         break;
       case 6:
-        octaveNum = '\'\'\''
+        octaveNum = "'''";
         break;
       case 7:
-        octaveNum = '\'\'\'\''
+        octaveNum = "''''";
         break;
       default:
-        console.log('octave = ' + octave);
-        octaveNum = ''
+        console.log("octave = " + octave);
+        octaveNum = "";
         break;
     }
     lilypondNote += step.toLowerCase() + octaveNum;
@@ -186,18 +236,18 @@ function noteToLilypond(note) {
   // Handle duration
   const { type } = note;
   let numType;
-  switch(type[0]) {
+  switch (type[0]) {
     case "eighth":
-      numType = '8';
+      numType = "8";
       break;
     case "quarter":
-      numType = '4';
+      numType = "4";
       break;
     case "half":
-      numType = '2';
+      numType = "2";
       break;
     default:
-      numType = 'err';
+      numType = "err";
   }
   lilypondNote += numType;
 
@@ -205,24 +255,21 @@ function noteToLilypond(note) {
 
   const { dot } = note;
   if (dot) {
-    lilypondNote += '.';
+    lilypondNote += ".";
   }
 
   // Handle Chord
   // This will initially write the chord incorrectly if it has more than 2 notes. It will write the middle note as the end note of the chord as well.
   // We handle this in notes_to_lilypond() by reversing an array of the notes and detecting and processing when we enter and exit a chord.
-  const {chord} = note;
+  const { chord } = note;
   if (chord) {
-    
     if (dot) {
       lilypondNote = lilypondNote.slice(0, -2);
       lilypondNote += `>${numType}.`;
-    }
-    else {
+    } else {
       lilypondNote = lilypondNote.slice(0, -1);
       lilypondNote += `>${numType}`;
     }
-    
   }
 
   return lilypondNote;
@@ -233,7 +280,7 @@ function noteToLilypond(note) {
 
 function notes_to_lilypond(notes) {
   let staff_code = []; // staff_code will be an array of strings, with each array member being the code for a given staff. These will be compiled together in lilypond_code.
-  let lilypond_code = "\n\\version \"2.24.1\"\n\n";
+  let lilypond_code = '\n\\version "2.24.1"\n\n';
   lilypond_code += "\\paper {\n";
   lilypond_code += "  ragged-right = ##f\n";
   lilypond_code += "}\n\n";
@@ -243,13 +290,14 @@ function notes_to_lilypond(notes) {
   // Find all unique measure numbers
   const measureNumbers = new Set(notes.map((measure) => measure.number));
 
-  console.log('MEASURE NUMBERS: ' + Array.from(measureNumbers).join(', '));
+  console.log("MEASURE NUMBERS: " + Array.from(measureNumbers).join(", "));
 
   // Generate LilyPond code for each measure
   measureNumbers.forEach((measureNumber) => {
-    
-    const measureNotes = notes.find((measure) => measure.number === measureNumber).notes;
-    console.log('MEASURE NOTES: ' + JSON.stringify(measureNotes));
+    const measureNotes = notes.find(
+      (measure) => measure.number === measureNumber
+    ).notes;
+    console.log("MEASURE NOTES: " + JSON.stringify(measureNotes));
 
     // Get exact # of staffs per measure... Ex: 2 staffs detected = [1, 2]
     const staffNumbers = measureNotes.map((note) => parseInt(note.staff));
@@ -259,33 +307,34 @@ function notes_to_lilypond(notes) {
         uniqueStaffNumArray.push(staffNumbers[i]);
       }
     }
-    console.log('STAFF NUMBERS: ' + Array.from(uniqueStaffNumArray).join(', '));
+    console.log("STAFF NUMBERS: " + Array.from(uniqueStaffNumArray).join(", "));
 
     // For each staff number found..
     // This is where the staff_code array is built, controlled by index.
     uniqueStaffNumArray.forEach((staffNumber, index) => {
-
       // Pulls the notes in the current measure that belong to the current staff number
-      const staffNotes = measureNotes.filter((note) => parseInt(note.staff) === staffNumber);
-      console.log('STAFF NOTES: ' + JSON.stringify(staffNotes));
+      const staffNotes = measureNotes.filter(
+        (note) => parseInt(note.staff) === staffNumber
+      );
+      console.log("STAFF NOTES: " + JSON.stringify(staffNotes));
 
       // initializes the TOP of the staff:
-      staff_code[index] = (staff_code[index] || '');
+      staff_code[index] = staff_code[index] || "";
 
-      if (staff_code[index] == '') {
+      if (staff_code[index] == "") {
         staff_code[index] += `  \\new Staff {\n`;
 
         let clef;
         // Assuming staff 1 = treble, 2 = bass, etc.
         switch (staffNumber) {
           case 1:
-            clef = 'treble';
+            clef = "treble";
             break;
           case 2:
-            clef = 'bass';
+            clef = "bass";
             break;
           default:
-            console.log('STAFF NUMBER: ' + staffNotes);
+            console.log("STAFF NUMBER: " + staffNotes);
             break;
         }
         staff_code[index] += `    \\clef ${clef}\n`;
@@ -302,31 +351,33 @@ function notes_to_lilypond(notes) {
           uniqueVoiceNumArray.push(voiceNumbers[i]);
         }
       }
-      console.log('VOICE NUMBERS: ' + Array.from(uniqueVoiceNumArray).join(', '));
+      console.log(
+        "VOICE NUMBERS: " + Array.from(uniqueVoiceNumArray).join(", ")
+      );
 
       // For each voice on the staff, add the notes in them in order.
       uniqueVoiceNumArray.forEach((voice, vIndex) => {
         vIndex += 1;
-        let textVIndex = '';
+        let textVIndex = "";
 
         // Pulls the notes in the current staff that belong to the current voice number
-        const voiceNotes = staffNotes.filter((note) => parseInt(note.voice) === voice);
-        console.log('VOICE NOTES: ' + JSON.stringify(voiceNotes));
+        const voiceNotes = staffNotes.filter(
+          (note) => parseInt(note.voice) === voice
+        );
+        console.log("VOICE NOTES: " + JSON.stringify(voiceNotes));
 
         switch (vIndex) {
           case 1:
-            if (staffNumber == 1){
+            if (staffNumber == 1) {
               textVIndex = "One";
-            }
-            else if (staffNumber == 2){
+            } else if (staffNumber == 2) {
               textVIndex = "Four";
             }
             break;
           case 2:
-            if (staffNumber == 1){
+            if (staffNumber == 1) {
               textVIndex = "Two";
-            }
-            else if (staffNumber == 2){
+            } else if (staffNumber == 2) {
               textVIndex = "Three";
             }
             break;
@@ -336,16 +387,17 @@ function notes_to_lilypond(notes) {
         }
 
         if (vIndex == 1) {
-          staff_code[index] += `    \\new Voice = \"${staffNumber}${measureNumber}\" {\n`;
+          staff_code[
+            index
+          ] += `    \\new Voice = \"${staffNumber}${measureNumber}\" {\n`;
           staff_code[index] += `      <<\n`;
           staff_code[index] += `        {\n`;
         } else {
           staff_code[index] += `        \\new Voice {\n`;
         }
-        
+
         staff_code[index] += `          \\voice${textVIndex}\n`;
         staff_code[index] += `          `;
-
 
         // lilynotes is used to gather all the notes in the given voice.
         // Then, it reverses itself and checks to see which notes belong to chords if any exist.
@@ -353,66 +405,60 @@ function notes_to_lilypond(notes) {
         const lilynotes = [];
 
         voiceNotes.forEach((note) => {
-          lilynotes.push(noteToLilypond(note))
+          lilynotes.push(noteToLilypond(note));
         });
-        console.log("LILYNOTES: " + Array.from(lilynotes).join(', '));
+        console.log("LILYNOTES: " + Array.from(lilynotes).join(", "));
 
         lilynotes.reverse();
 
-        console.log("LILYNOTES REVERSED: " + Array.from(lilynotes).join(', '));
+        console.log("LILYNOTES REVERSED: " + Array.from(lilynotes).join(", "));
 
         let inChord = false;
         lilynotes.forEach((note, i) => {
-          if (note.includes('>') && inChord == false) {
+          if (note.includes(">") && inChord == false) {
             inChord = true;
-          }
-          else if (note.includes('>') && inChord == true) {
-            lilynotes[i] = removeCharacter(note, '>');
-          }
-          else if (!(note.includes('>')) && inChord == true) {
-            if (note.includes('.')){
+          } else if (note.includes(">") && inChord == true) {
+            lilynotes[i] = removeCharacter(note, ">");
+          } else if (!note.includes(">") && inChord == true) {
+            if (note.includes(".")) {
               note = note.slice(0, -2);
-              lilynotes[i] = '<' + note;
-            }
-            else {
+              lilynotes[i] = "<" + note;
+            } else {
               note = note.slice(0, -1);
-              lilynotes[i] = '<' + note;
+              lilynotes[i] = "<" + note;
             }
-            
+
             inChord = false;
-          }
-          else {
-            ;
+          } else {
           }
         });
 
         //reverses lilyntoes again to put it back in the correct order
         lilynotes.reverse();
 
-        console.log("LILYNOTES PROCESSED: " + Array.from(lilynotes).join(', '));
+        console.log("LILYNOTES PROCESSED: " + Array.from(lilynotes).join(", "));
 
         // Adds the now-chord-corrected notes into staff_code in order
         lilynotes.forEach((note) => {
           staff_code[index] += `${note}  `;
-        })
+        });
 
         staff_code[index] += `\n        }\n`;
-
-      })
+      });
 
       staff_code[index] += `      >>\n`;
       staff_code[index] += `      \\oneVoice\n`;
       staff_code[index] += `    }|\n\n`;
 
       console.log(`\nSTAFF CODE #${index}: \n\n` + staff_code[index]);
-    })
+    });
   });
 
   //insert the staffs in staff_code into lilypond_code
   staff_code.forEach((staff) => {
     lilypond_code += staff;
     lilypond_code += `  }\n\n`;
-  })
+  });
 
   lilypond_code += "  >>\n";
   lilypond_code += "}\n";
@@ -421,19 +467,19 @@ function notes_to_lilypond(notes) {
 }
 
 // File upload endpoint
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post("/upload", upload.single("file"), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+    return res.status(400).json({ error: "No file uploaded" });
   }
 
-  console.log('Received file:', req.file);
+  console.log("Received file:", req.file);
 
   console.log(`File detected... ${req.file.path}`);
   console.log("MULTER: " + JSON.stringify(upload));
 
   try {
     const inputFile = req.file.path;
-    const outputDir = 'output_files'; // Update this with your desired output directory
+    const outputDir = "output_files"; // Update this with your desired output directory
     await runAudiverisBatch(inputFile, outputDir);
 
     // Assuming the output files are saved with specific filenames like 'output1.xml', 'output2.xml', etc.
@@ -442,11 +488,17 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       // Add other output files as needed
     ];
 
-    
-
     const omrFile = `${outputDir}/${req.file.filename}.omr`;
-    const logFiles = fs.readdirSync(outputDir).filter((file) => file.startsWith(`${req.file.filename}-`) && file.endsWith('.log'));
-    deleteFiles([omrFile, ...logFiles.map((logFile) => `${outputDir}/${logFile}`)]);
+    const logFiles = fs
+      .readdirSync(outputDir)
+      .filter(
+        (file) =>
+          file.startsWith(`${req.file.filename}-`) && file.endsWith(".log")
+      );
+    deleteFiles([
+      omrFile,
+      ...logFiles.map((logFile) => `${outputDir}/${logFile}`),
+    ]);
     deleteFiles([inputFile]);
     extractAndDeleteMxlFiles(outputDir);
 
@@ -455,12 +507,18 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     const lilypond_code = notes_to_lilypond(notes);
 
+    const filename = "here.ly";
+    fs.writeFileSync(filename, lilypond_code);
+    runLilyPond("pdf_output", "here.ly");
+
     console.log(lilypond_code);
 
     res.json({ outputFiles, notes });
   } catch (error) {
-    console.error('Error running Audiveris:', error);
-    res.status(500).json({ error: 'An error occurred during Audiveris processing' });
+    console.error("Error running Audiveris:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred during Audiveris processing" });
   }
 });
 
