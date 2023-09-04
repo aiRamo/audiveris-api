@@ -1,5 +1,4 @@
 const express = require("express");
-const multer = require("multer");
 const cors = require("cors");
 const app = express();
 const { exec } = require("child_process");
@@ -7,13 +6,50 @@ const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
 const xml2js = require("xml2js");
-const e = require("express");
 
 // Enable Cross-Origin Resource Sharing (CORS)
 app.use(cors());
 
-// Multer configuration for handling file uploads
-const upload = multer({ dest: "uploads/" });
+// Firebase Storage Input File Download ....
+
+const admin = require('firebase-admin');
+
+admin.initializeApp({
+  credential: admin.credential.cert('./firebase-key.json'),
+  storageBucket: 'soundsync-sd.appspot.com',
+});
+
+
+// Define a reference to the file in Firebase Storage
+const bucket = admin.storage().bucket();
+
+async function getFileFromInputDir(uid) {
+  const directoryPath = `images/${uid}/inputFile/`;
+  
+  const [files] = await bucket.getFiles({
+    prefix: directoryPath,
+  });
+
+  if (files.length === 0) {
+    console.log('No files found.');
+    return null;
+  }
+
+  // Make sure the 'uploads' directory exists in your project directory
+  const projectUploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(projectUploadsDir)){
+    fs.mkdirSync(projectUploadsDir);
+  }
+
+  const file = files[0];
+  const tempFilePath = path.join(projectUploadsDir, path.basename(file.name));
+  
+  // Download the file
+  await file.download({ destination: tempFilePath });
+  
+  console.log('File has been downloaded to', tempFilePath);
+  return tempFilePath; // return the path where the file was downloaded
+}
 
 //lilypond
 function runLilyPond(outputDir, filename) {
@@ -476,61 +512,71 @@ function notes_to_lilypond(notes) {
   return lilypond_code;
 }
 
+app.use(express.json());
+
 // File upload endpoint
-app.post("/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+app.post("/upload", async (req, res) => {
+  const uid = req.body.uid; // Firebase UID from the client
+
+  if (!uid) {
+    return res.status(400).json({ error: "No UID provided" });
   }
 
-  console.log("Received file:", req.file);
+  console.log("Received UID:", uid);
 
-  console.log(`File detected... ${req.file.path}`);
-  console.log("MULTER: " + JSON.stringify(upload));
+  const filePath = await getFileFromInputDir(uid);
+
+  if (!filePath) {
+    return res.status(404).json({ error: 'No file found' });
+  }
+
+  console.log('File path:', filePath);
+  
 
   try {
-    const inputFile = req.file.path;
     const outputDir = "output_files"; // Update this with your desired output directory
-    await runAudiverisBatch(inputFile, outputDir);
+    await runAudiverisBatch(filePath, outputDir);
 
-    // Assuming the output files are saved with specific filenames like 'output1.xml', 'output2.xml', etc.
+    // Assuming the output files are saved with specific filenames
+    const fileName = path.basename(filePath); // extracting the filename from the full path
     const outputFiles = [
-      `${outputDir}/${req.file.filename}`,
+      `${outputDir}/${fileName}`,
       // Add other output files as needed
     ];
 
-    const omrFile = `${outputDir}/${req.file.filename}.omr`;
+    const omrFile = `${outputDir}/${fileName}.omr`;
     const logFiles = fs
       .readdirSync(outputDir)
       .filter(
         (file) =>
-          file.startsWith(`${req.file.filename}-`) && file.endsWith(".log")
+          file.startsWith(`${fileName}-`) && file.endsWith(".log")
       );
+
     deleteFiles([
       omrFile,
       ...logFiles.map((logFile) => `${outputDir}/${logFile}`),
     ]);
-    deleteFiles([inputFile]);
+
+    deleteFiles([filePath]); // Delete the downloaded file
     extractAndDeleteMxlFiles(outputDir);
 
-    const musicXMLFilePath = `${outputDir}/${req.file.filename}/${req.file.filename}.xml`;
+    const uidWithoutExtension = path.basename(filePath, path.extname(filePath)); // Remove the extension from uid
+    const musicXMLFilePath = `${outputDir}/${uid}/${uidWithoutExtension}.xml`;
+
     const notes = await parseMusicXML(musicXMLFilePath);
 
     const lilypond_code = notes_to_lilypond(notes);
 
-    const filename = "here.ly";
-    fs.writeFileSync(filename, lilypond_code);
-    runLilyPond("pdf_output", "here.ly");
+    //const lilyFileName = "here.ly";
+    //fs.writeFileSync(lilyFileName, lilypond_code);
+    //runLilyPond("pdf_output", lilyFileName);
 
-    const pdfFilePath = "pdf_output/here.pdf";
-    const base6 = sendPDFResponse(pdfFilePath);
 
     console.log(lilypond_code);
-    res.json({ outputFiles, notes, base6, pdfFilePath });
+    res.json({ outputFiles, notes });
   } catch (error) {
     console.error("Error running Audiveris:", error);
-    res
-      .status(500)
-      .json({ error: "An error occurred during Audiveris processing" });
+    res.status(500).json({ error: "An error occurred during Audiveris processing" });
   }
 });
 
