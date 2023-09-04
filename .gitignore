@@ -1,0 +1,8 @@
+# .gitignore file
+
+# Ignore firebase-key.json
+firebase-key.json
+
+# Other ignored files and directories
+node_modules/
+build/
