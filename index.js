@@ -53,7 +53,7 @@ async function getFileFromInputDir(uid) {
 
 //lilypond
 function runLilyPond(outputDir, filename) {
-  const command = `"lilypond" -o ${outputDir} ${filename}`;
+  const command = `lilypond-2.24.2\\bin\\lilypond -fpng ${filename}`;
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
       if (error) {
@@ -538,10 +538,9 @@ app.post("/upload", async (req, res) => {
     await runAudiverisBatch(filePath, outputDir);
 
     // Assuming the output files are saved with specific filenames
-    const fileName = path.basename(filePath); // extracting the filename from the full path
+    const fileName = path.basename(filePath, path.extname(filePath)); // extracting the filename from the full path
     const outputFiles = [
       `${outputDir}/${fileName}`,
-      // Add other output files as needed
     ];
 
     const omrFile = `${outputDir}/${fileName}.omr`;
@@ -551,6 +550,8 @@ app.post("/upload", async (req, res) => {
         (file) =>
           file.startsWith(`${fileName}-`) && file.endsWith(".log")
       );
+
+    console.log("OMR :" + omrFile + "LOG: " + logFiles);
 
     deleteFiles([
       omrFile,
@@ -567,12 +568,12 @@ app.post("/upload", async (req, res) => {
 
     const lilypond_code = notes_to_lilypond(notes);
 
-    //const lilyFileName = "here.ly";
-    //fs.writeFileSync(lilyFileName, lilypond_code);
-    //runLilyPond("pdf_output", lilyFileName);
+    const lilyFileName = "here.ly";
+    fs.writeFileSync(lilyFileName, lilypond_code);
+    runLilyPond("pdf_output", lilyFileName);
 
 
-    console.log(lilypond_code);
+    //console.log(lilypond_code);
     res.json({ outputFiles, notes });
   } catch (error) {
     console.error("Error running Audiveris:", error);
