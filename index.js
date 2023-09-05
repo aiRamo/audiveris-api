@@ -52,8 +52,8 @@ async function getFileFromInputDir(uid) {
 }
 
 //lilypond
-function runLilyPond(outputDir, filename) {
-  const command = `lilypond-2.24.2\\bin\\lilypond -fpng ${filename}`;
+async function runLilyPond(outputDir, filename) {
+  const command = `lilypond-2.24.2\\bin\\lilypond -fpdf ${filename}`;
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
       if (error) {
@@ -66,14 +66,29 @@ function runLilyPond(outputDir, filename) {
   });
 }
 
-function sendPDFResponse(pdfFilePath) {
-  // Read the PDF file
-  const pdfContent = fs.readFileSync(pdfFilePath);
+// Sends the newly created PDF file to the user's firebase storage location and then deletes the local file.
+async function sendPDFToFirebaseAndDelete(uid, pdfFilePath) {
+  try {
+    const outputPath = `images/${uid}/outputFile/${path.basename(pdfFilePath)}`;
 
-  // Convert PDF content to base64-encoded string
-  const pdfBase64 = pdfContent.toString("base64");
+    // Uploads the PNG output file to Firebase Storage
+    await bucket.upload(pdfFilePath, {
+      destination: outputPath,
+      metadata: {
+        contentType: 'application/pdf'
+      }
+    });
 
-  return pdfBase64;
+    console.log(`File ${pdfFilePath} uploaded to ${outputPath}`);
+
+    // Deletes the local PNG output file
+    fs.unlinkSync(pdfFilePath);
+
+    return true
+  } catch (error) {
+    console.error('Error uploading PNG to Firebase:', error);
+    return false;
+  }
 }
 
 // Function to run Audiveris batch command
@@ -570,11 +585,22 @@ app.post("/upload", async (req, res) => {
 
     const lilyFileName = "here.ly";
     fs.writeFileSync(lilyFileName, lilypond_code);
-    runLilyPond("pdf_output", lilyFileName);
+    await runLilyPond("pdf_output", lilyFileName);
 
+    // Assumes 'here.png' is the PNG file you have in the root directory.
+    const pdfFilePath = path.join(__dirname, 'here.pdf');
+
+    const result = await sendPDFToFirebaseAndDelete(uid, pdfFilePath);
+
+    if (!result) {
+      return res.status(500).json({ error: 'Failed to upload PNG to Firebase' });
+    }
+
+    // THIS IS THE FILE UPLOAD LOCATION
+    const firebasePath = `images/${uid}/outputFile/here.pdf`; // Replace 'here.pdf' with your actual file name
 
     //console.log(lilypond_code);
-    res.json({ outputFiles, notes });
+    res.json({ firebasePath, notes });
   } catch (error) {
     console.error("Error running Audiveris:", error);
     res.status(500).json({ error: "An error occurred during Audiveris processing" });
