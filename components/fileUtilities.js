@@ -4,6 +4,16 @@ const path = require("path");
 const AdmZip = require("adm-zip");
 
 async function convertPDFToPNG(pdfFilePath, outputDir) {
+  console.log(
+    `Attempting to convert PDF at ${pdfFilePath} to PNG in directory ${outputDir}`
+  );
+
+  // Ensure output directory exists
+  if (!fs.existsSync(outputDir)) {
+    console.log(`Directory ${outputDir} doesn't exist. Creating it.`);
+    fs.mkdirSync(outputDir);
+  }
+
   const opts = {
     format: "png",
     out_dir: outputDir,
@@ -13,9 +23,9 @@ async function convertPDFToPNG(pdfFilePath, outputDir) {
 
   try {
     await pdf.convert(pdfFilePath, opts);
-    return `${outputDir}/output-1.png`; // Assuming you are interested in the first page only
+    return `${outputDir}/output-1.png`;
   } catch (err) {
-    console.error("Error converting PDF to PNG:", err);
+    console.error(`Error converting PDF to PNG: ${err}`);
     return null;
   }
 }
