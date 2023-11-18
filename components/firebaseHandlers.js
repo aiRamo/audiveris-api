@@ -15,15 +15,6 @@ admin.initializeApp({
 // Define a reference to the file in Firebase Storage
 const bucket = admin.storage().bucket();
 
-// Returns the current number of files in the current collection.
-async function getFileCountInDirectory(uid, collectionName) {
-  const [files] = await bucket.getFiles({
-    prefix: `images/${uid}/sheetCollections/${collectionName}/`,
-  });
-
-  return files.length;
-}
-
 // returns a dateTime string representing the current time. <YYYYMMDDHHmmss>
 function getCurrentDateTime() {
   const now = new Date();
@@ -46,16 +37,14 @@ async function sendFileToFirebaseAndDelete(
   contentType,
   lyFile,
   xmlFile,
-  collectionName
+  collectionName,
+  imageNumber
 ) {
   try {
-    // Get the count of files in the directory
-    const count = (await getFileCountInDirectory(uid, collectionName)) + 1;
-
     // Generate the current dateTime string
     const dateTime = getCurrentDateTime();
 
-    const outputPath = `images/${uid}/sheetCollections/${collectionName}/${count}-${uid}-${dateTime}`;
+    const outputPath = `images/${uid}/sheetCollections/${collectionName}/${imageNumber}-${uid}-${dateTime}`;
 
     // Uploads the output file to Firebase Storage
     await bucket.upload(filePath, {

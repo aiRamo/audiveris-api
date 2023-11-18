@@ -189,8 +189,20 @@ function notes_to_lilypond(notes) {
   lilypond_code += "\\score {\n";
   lilypond_code += "  <<\n";
 
-  // Find all unique measure numbers
-  const measureNumbers = new Set(notes.map((measure) => measure.number));
+  console.log("NOTES: " + JSON.stringify(notes));
+
+  let measureNumbers;
+
+  notes = notes.flat();
+
+  // Check if notes is an array
+  if (Array.isArray(notes)) {
+    // Flatten the array and find all unique measure numbers
+    measureNumbers = new Set(notes.map((measure) => measure.number));
+    console.log("MEASURE NUMBERS: " + Array.from(measureNumbers).join(", "));
+  } else {
+    console.log("NOTES is not an array or is undefined.");
+  }
 
   console.log("MEASURE NUMBERS: " + Array.from(measureNumbers).join(", "));
 
@@ -200,18 +212,7 @@ function notes_to_lilypond(notes) {
       (measure) => measure.number === measureNumber
     );
 
-    console.log(JSON.stringify(currentmeasure["lineBreak"]));
-
-    if (
-      currentmeasure["lineBreak"] &&
-      Array.isArray(currentmeasure["lineBreak"]) &&
-      currentmeasure["lineBreak"].length > 0 &&
-      currentmeasure["lineBreak"][0]["$"] &&
-      currentmeasure["lineBreak"][0]["$"]["new-system"] === "yes"
-    ) {
-      breakMeasures[measureNumber] = true;
-      console.log("LINEBREAK HERE");
-    }
+    console.log("CURR MEASURE NOTES: " + JSON.stringify(currentmeasure));
 
     const measureNotes = currentmeasure.notes;
 

@@ -149,17 +149,47 @@ app.post("/upload", async (req, res) => {
 
     extractAndDeleteMxlFiles(outputDir);
 
-    const uidWithoutExtension = path.basename(
-      inputFilePath,
-      path.extname(inputFilePath)
-    ); // Remove the extension from uid
-    const musicXMLFilePath = `${outputDir}/${uid}/${uidWithoutExtension}.xml`;
+    const folders = fs.readdirSync(outputDir);
+    const directories = folders.filter((folder) =>
+      fs.statSync(path.join(outputDir, folder)).isDirectory()
+    );
 
-    const notes = await parseMusicXML(musicXMLFilePath);
+    directories.sort((a, b) => {
+      const lastNumberA = parseInt(a.match(/\d+$/)[0], 10);
+      const lastNumberB = parseInt(b.match(/\d+$/)[0], 10);
+      return lastNumberA - lastNumberB;
+    });
 
-    console.log(JSON.stringify(notes));
+    let totalNotes = [];
 
-    const pdfFilePath = await processLilyPond(notes, uid);
+    for (const folder of directories) {
+      let uidWithoutExtension = path.basename(folder, path.extname(folder));
+
+      // Check if the folder name includes '.mvt'
+      if (folder.includes(".mvt")) {
+        // Extract the count from the folder name
+        const count = folder.match(/\.mvt(\d+)/);
+        const suffix = count ? count[1] : 1; // If count is not present, use 1
+
+        uidWithoutExtension = `${uidWithoutExtension}.mvt${suffix}`;
+      }
+
+      console.log("W/O EXTENSION NAME: " + uidWithoutExtension);
+      const musicXMLFilePath = path.join(
+        outputDir,
+        folder,
+        `${uidWithoutExtension}.xml`
+      );
+      const notes = await parseMusicXML(musicXMLFilePath);
+      totalNotes.push(notes);
+      console.log("Pushing now...");
+    }
+    console.log("PRINTING HERE...");
+    console.log(JSON.stringify(totalNotes));
+
+    console.log("PROCESSING...");
+
+    const pdfFilePath = await processLilyPond(totalNotes, uid);
 
     const lyFilePath = path.join(__dirname, `${uid}.ly`);
     const xmlFilePath = path.join(
@@ -178,7 +208,8 @@ app.post("/upload", async (req, res) => {
       "image/png",
       lyFilePath,
       xmlFilePath,
-      req.body.collectionName
+      req.body.collectionName,
+      req.body.imageNumber
     );
 
     if (!result) {
@@ -201,6 +232,8 @@ app.post("/upload", async (req, res) => {
     extractAndDeleteMxlFiles(outputDir);
 
     const coordinateData = await fetchNoteCoordsAndClean(uid);
+
+    const notes = totalNotes;
 
     //console.log(lilypond_code);
     res.json({ firebasePath, notes, coordinateData });
