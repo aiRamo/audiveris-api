@@ -233,7 +233,7 @@ app.post("/upload", async (req, res) => {
 
     const coordinateData = await fetchNoteCoordsAndClean(uid);
 
-    const notes = totalNotes;
+    const notes = totalNotes.flat();
 
     //console.log(lilypond_code);
     res.json({ firebasePath, notes, coordinateData });

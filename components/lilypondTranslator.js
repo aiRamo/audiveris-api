@@ -137,6 +137,12 @@ function noteToLilypond(note, textVIndex) {
     const { type } = note;
     let numType;
     switch (type[0]) {
+      case "32nd":
+        numType = "32";
+        break;
+      case "16th":
+        numType = "16";
+        break;
       case "eighth":
         numType = "8";
         break;
@@ -145,6 +151,9 @@ function noteToLilypond(note, textVIndex) {
         break;
       case "half":
         numType = "2";
+        break;
+      case "whole":
+        numType = "1";
         break;
       default:
         numType = "err";
@@ -238,7 +247,7 @@ function notes_to_lilypond(notes) {
         // Assuming you have clef and time signature information available
         // Replace 'clef' and 'time signature' with your actual data
         measureCode += `  \\clef treble\n`;
-        measureCode += `  \\time 3/4\n`;
+        measureCode += `  \\time 4/4\n`;
       }
 
       // Create a set of voice numbers for the current measure
@@ -327,7 +336,7 @@ function notes_to_lilypond(notes) {
               break;
           }
           staff_code[index] += `    \\clef ${clef}\n`;
-          staff_code[index] += `    \\time 3/4\n`;
+          staff_code[index] += `    \\time 4/4\n`;
 
           staff_code[index] += ``;
         }
