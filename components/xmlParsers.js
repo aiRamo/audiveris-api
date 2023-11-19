@@ -164,13 +164,17 @@ function parseMusicXML(musicXMLFilePath) {
 
             // Array to hold all measures from all parts
             const allNotesWithMeasureData = [];
+            let firstMeasureTimeData = {
+              beats: "3",
+              beatType: "4",
+            };
 
             // Loop through all parts
             parts.forEach((part) => {
               const measures = part["measure"];
 
               // Loop through all measures of the current part
-              measures.forEach((measure) => {
+              measures.forEach((measure, index) => {
                 const measureData = {
                   partId: part.$.id, // Part ID
                   number: measure.$.number, // Measure number
@@ -179,87 +183,131 @@ function parseMusicXML(musicXMLFilePath) {
                   lineBreak: measure["print"],
                 };
 
+                // Extract the time data (beats and beat-type) from the first measure
+                if (
+                  index === 0 &&
+                  measure.attributes &&
+                  measure.attributes[0] &&
+                  measure.attributes[0].time
+                ) {
+                  const timeAttributes = measure.attributes[0].time[0];
+                  firstMeasureTimeData = {
+                    beats: parseInt(timeAttributes.beats[0], 10),
+                    beatType: parseInt(timeAttributes["beat-type"][0], 10),
+                  };
+                }
+
                 const notes = measure["note"];
                 if (Array.isArray(notes)) {
                   notes.forEach((note) => {
+                    // Initialize an object to hold the note data
+                    let noteData = {};
+
                     if (note.rest) {
                       const { rest, duration, voice, staff, type } = note;
-                      // Handle rests (no pitch, type, beam, or chord for rests)
-                      measureData.notes.push({
-                        rest,
-                        duration,
-                        voice,
-                        staff,
-                        type,
-                      });
+                      noteData = { rest, duration, voice, staff, type };
                     } else {
                       const {
                         pitch,
+                        duration,
                         type,
-                        beam,
-                        stem,
-                        staff,
-                        chord,
-                        dot,
-                        accidental,
                         voice,
-                      } = note; // Extract desired note attributes
-                      measureData.notes.push({
+                        staff,
+                        dot,
+                        chord,
+                        accidental,
+                        stem,
+                      } = note;
+                      noteData = {
                         pitch,
+                        duration,
                         type,
-                        beam,
-                        stem,
-                        staff,
-                        chord,
-                        dot,
-                        accidental,
                         voice,
-                      });
+                        staff,
+                        dot,
+                        chord,
+                        accidental,
+                        stem,
+                      };
                     }
+
+                    // Check for time-modification and add it to noteData if present
+                    if (note["time-modification"]) {
+                      const timeModification = note["time-modification"][0];
+                      noteData.timeModification = {
+                        actualNotes: parseInt(
+                          timeModification["actual-notes"][0],
+                          10
+                        ),
+                        normalNotes: parseInt(
+                          timeModification["normal-notes"][0],
+                          10
+                        ),
+                      };
+                    }
+
+                    // Add the noteData object to the measureData.notes array
+                    measureData.notes.push(noteData);
                   });
                 } else {
                   // For a single note or rest
+                  let noteData = {}; // Initialize an object to hold the note data
+
                   if (notes.rest) {
                     const { rest, duration, voice, staff, type } = notes;
-                    // Handle rests (no pitch, type, beam, or chord for rests)
-                    measureData.notes.push({
-                      rest,
-                      duration,
-                      voice,
-                      staff,
-                      type,
-                    });
+                    noteData = { rest, duration, voice, staff, type };
                   } else {
                     const {
                       pitch,
+                      duration,
                       type,
-                      beam,
-                      stem,
-                      staff,
-                      chord,
-                      dot,
-                      accidental,
                       voice,
-                    } = notes; // Extract desired note attributes
-                    measureData.notes.push({
+                      staff,
+                      dot,
+                      chord,
+                      accidental,
+                      stem,
+                    } = notes;
+                    noteData = {
                       pitch,
+                      duration,
                       type,
-                      beam,
-                      stem,
-                      staff,
-                      chord,
-                      dot,
-                      accidental,
                       voice,
-                    });
+                      staff,
+                      dot,
+                      chord,
+                      accidental,
+                      stem,
+                    };
+
+                    // Check for time-modification and add it to noteData if present
+                    if (notes["time-modification"]) {
+                      const timeModification = notes["time-modification"][0];
+                      noteData.timeModification = {
+                        actualNotes: parseInt(
+                          timeModification["actual-notes"][0],
+                          10
+                        ),
+                        normalNotes: parseInt(
+                          timeModification["normal-notes"][0],
+                          10
+                        ),
+                      };
+                    }
                   }
+
+                  // Add the noteData object to the measureData.notes array
+                  measureData.notes.push(noteData);
                 }
                 //console.log(JSON.stringify(measureData));
                 allNotesWithMeasureData.push(measureData);
               });
             });
 
-            resolve(allNotesWithMeasureData);
+            resolve({
+              notes: allNotesWithMeasureData,
+              time: firstMeasureTimeData,
+            });
           }
         });
       }

@@ -97,8 +97,8 @@ function deleteClientOutputFolder(uid) {
   });
 }
 
-async function processLilyPond(notes, uid) {
-  const lilypond_code = notes_to_lilypond(notes);
+async function processLilyPond(notes, uid, timeData) {
+  const lilypond_code = notes_to_lilypond(notes, timeData);
   const lilyFileName = `${uid}.ly`;
 
   fs.writeFileSync(lilyFileName, lilypond_code);
@@ -161,6 +161,7 @@ app.post("/upload", async (req, res) => {
     });
 
     let totalNotes = [];
+    let timeData;
 
     for (const folder of directories) {
       let uidWithoutExtension = path.basename(folder, path.extname(folder));
@@ -180,8 +181,9 @@ app.post("/upload", async (req, res) => {
         folder,
         `${uidWithoutExtension}.xml`
       );
-      const notes = await parseMusicXML(musicXMLFilePath);
+      const { notes, time } = await parseMusicXML(musicXMLFilePath);
       totalNotes.push(notes);
+      timeData = time;
       console.log("Pushing now...");
     }
     console.log("PRINTING HERE...");
@@ -189,7 +191,7 @@ app.post("/upload", async (req, res) => {
 
     console.log("PROCESSING...");
 
-    const pdfFilePath = await processLilyPond(totalNotes, uid);
+    const pdfFilePath = await processLilyPond(totalNotes, uid, timeData);
 
     const lyFilePath = path.join(__dirname, `${uid}.ly`);
     const xmlFilePath = path.join(
@@ -201,7 +203,6 @@ app.post("/upload", async (req, res) => {
     if (pngFilePath === null) {
       return res.status(500).json({ error: "Failed to convert PDF to PNG" });
     }
-
     const result = await sendFileToFirebaseAndDelete(
       uid,
       pngFilePath,
@@ -230,7 +231,6 @@ app.post("/upload", async (req, res) => {
     DeleteAudiverisWorkerFiles(pdfFilePath, outputDir);
 
     extractAndDeleteMxlFiles(outputDir);
-
     const coordinateData = await fetchNoteCoordsAndClean(uid);
 
     const notes = totalNotes.flat();

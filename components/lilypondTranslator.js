@@ -9,6 +9,77 @@ function removeCharacter(str, char) {
   return str.replace(regex, "");
 }
 
+let tupletNoteCount = 0;
+let inTuplet = false;
+let tupletComplete = false;
+
+function noteIsStartOfTuplet(note, index, notes) {
+  if (!note.timeModification || tupletComplete) {
+    return false;
+  }
+
+  // Start a new tuplet if not already in one or if the previous tuplet has ended
+  if (
+    !inTuplet ||
+    (inTuplet && tupletNoteCount >= note.timeModification.actualNotes)
+  ) {
+    inTuplet = true;
+    tupletNoteCount = 1; // Reset counter at the start of a tuplet
+    return true;
+  }
+
+  return false;
+}
+
+function noteIsEndOfTuplet(note, index, notes) {
+  if (!note.timeModification) {
+    if (inTuplet) {
+      inTuplet = false;
+      tupletNoteCount = 0;
+    }
+    return false;
+  }
+
+  tupletNoteCount++;
+
+  // Check if the tuplet should end
+  if (
+    inTuplet &&
+    (tupletNoteCount === note.timeModification.actualNotes + 1 ||
+      index === notes.length - 1)
+  ) {
+    inTuplet = false;
+    tupletComplete = true;
+    return true;
+  }
+
+  return false;
+}
+
+// Helper function to get LilyPond duration notation
+function getLilypondDuration(note) {
+  let type = String(note.type);
+
+  switch (type) {
+    case "32nd":
+      return "32"; // 32nd note
+    case "16th":
+      return "16"; // 16th note
+    case "eighth":
+      return "8"; // Eighth note
+    case "quarter":
+      return "4"; // Quarter note
+    case "half":
+      return "2"; // Half note
+    case "whole":
+      return "1"; // Whole note
+    // Add more cases as needed
+    default:
+      console.log("Unhandled note type: " + type);
+      return "4"; // Default to quarter note if not handled
+  }
+}
+
 // noteToLilypond() is used to process each note in the musicXML.
 // This will create and return a string variable that will include the note's step, octave, chord info, dot info, and type info in the correct format.
 
@@ -17,73 +88,9 @@ function noteToLilypond(note, textVIndex) {
   let vIndex;
 
   if (note.rest) {
-    if (!(note.rest[0].$ && note.rest[0].$.measure === "yes")) {
-      switch (textVIndex) {
-        case "One":
-          vIndex = "1";
-          break;
-        case "Two":
-          vIndex = "2";
-          break;
-        case "Three":
-          vIndex = "3";
-          break;
-        case "Four":
-          vIndex = "4";
-          break;
-        default:
-      }
-
-      lilypondNote += `\\override Rest.staff-position = #${vIndex}\n`;
-      lilypondNote += "          r"; // Rest starter
-    } else {
-      lilypondNote += "R"; // Rest starter
-    }
-
-    const { duration } = note;
-    const stringDuration = String(duration);
-    let currDuration;
-
-    console.log("DURATION : " + duration);
-    console.log("Type of DURATION : " + typeof duration);
-    console.log("SDURATION : " + stringDuration);
-    console.log("Type of SDURATION : " + typeof stringDuration);
-
-    switch (stringDuration) {
-      case "1":
-        currDuration = "4"; // Quarter rest
-        break;
-      case "2":
-        currDuration = "2"; // Half rest
-        break;
-      case "3":
-        currDuration = "2."; // Dotted half rest
-        break;
-      case "4":
-        currDuration = "1"; // Whole rest
-        break;
-      case "5":
-        currDuration = "2.~R4"; // Dotted half rest tied to quarter rest
-        break;
-      case "6":
-        currDuration = "1~R4"; // Whole rest tied to quarter rest
-        break;
-      case "7":
-        currDuration = "1~R2"; // Whole rest tied to half rest
-        break;
-      // Add more cases as needed
-      default:
-        currDuration = "4"; // Default to quarter rest if not handled
-        break;
-    }
-
-    if (!(note.rest[0].$ && note.rest[0].$.measure === "yes")) {
-      lilypondNote += currDuration + "\n";
-      lilypondNote += "          \\revert Rest.staff-position\n";
-      lilypondNote += "        ";
-    } else {
-      lilypondNote += currDuration;
-    }
+    // Directly output the rest with its duration
+    const restDuration = getLilypondDuration(note);
+    lilypondNote += `r${restDuration}`;
   } else {
     // Actual note, not a rest!
     // Handle pitch
@@ -188,7 +195,9 @@ function noteToLilypond(note, textVIndex) {
 // notes_to_lilypond() isolates the notes by their respective measure, then staff, then voice.
 // These notes, grouped by voice, staff, & measure, will then be rewritten into lilypond format.
 
-function notes_to_lilypond(notes) {
+let measureCount = 0;
+
+function notes_to_lilypond(notes, timeData) {
   const breakMeasures = {};
   let staff_code = []; // staff_code will be an array of strings, with each array member being the code for a given staff. These will be compiled together in lilypond_code.
   let lilypond_code = '\n\\version "2.24.1"\n\n';
@@ -247,8 +256,11 @@ function notes_to_lilypond(notes) {
         // Assuming you have clef and time signature information available
         // Replace 'clef' and 'time signature' with your actual data
         measureCode += `  \\clef treble\n`;
-        measureCode += `  \\time 4/4\n`;
+        measureCode += `  \\time ${timeData.beats}/${timeData.beatType}\n`;
       }
+
+      // Initialize variable to track if we're inside a tuplet
+      let inTuplet = false;
 
       // Create a set of voice numbers for the current measure
       const voiceNumbers = measureNotes.map((note) => parseInt(note.voice));
@@ -280,11 +292,25 @@ function notes_to_lilypond(notes) {
           (note) => parseInt(note.voice) === voice
         );
 
-        voiceNotes.forEach((note) => {
-          // Process and add LilyPond notation for each note
-          const lilyNote = noteToLilypond(note, textVIndex); // Replace with your function
-          measureCode += `    ${lilyNote}\n`;
+        voiceNotes.forEach((note, index) => {
+          // Check if this note is the start of a tuplet
+          if (!inTuplet && noteIsStartOfTuplet(note, index, voiceNotes)) {
+            const { actualNotes, normalNotes } = note.timeModification;
+            measureCode += `\\tuplet ${actualNotes}/${normalNotes} { `; // Append to measureCode
+            inTuplet = true;
+          }
+
+          // Add the note's LilyPond syntax
+          measureCode += noteToLilypond(note, textVIndex); // Append to measureCode
+
+          // Check if this note is the end of a tuplet
+          if (inTuplet && noteIsEndOfTuplet(note, index, voiceNotes)) {
+            measureCode += " } "; // Append to measureCode
+            inTuplet = false;
+          }
         });
+
+        tupletComplete = false;
 
         measureCode += `  }\n`; // Close the Voice block
       });
@@ -336,7 +362,9 @@ function notes_to_lilypond(notes) {
               break;
           }
           staff_code[index] += `    \\clef ${clef}\n`;
-          staff_code[index] += `    \\time 4/4\n`;
+          staff_code[
+            index
+          ] += `    \\time ${timeData.beats}/${timeData.beatType}\n`;
 
           staff_code[index] += ``;
         }
@@ -476,6 +504,12 @@ function notes_to_lilypond(notes) {
         staff_code[index] += `      \\oneVoice\n`;
         staff_code[index] += `    }|\n\n`;
 
+        measureCount++;
+
+        if (measureCount % 8 == 0) {
+          staff_code[index] += `    \\break\n\n`;
+        }
+
         console.log(`\nSTAFF CODE #${index}: \n\n` + staff_code[index]);
       });
     }
@@ -493,6 +527,7 @@ function notes_to_lilypond(notes) {
   lilypond_code += "  >>\n";
   lilypond_code += "}\n";
   console.log(`\nLILY CODE: \n\n` + lilypond_code);
+  console.log("TIME DATA: " + JSON.stringify(timeData));
   return lilypond_code;
 }
 
