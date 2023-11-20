@@ -76,7 +76,7 @@ function getLilypondDuration(note) {
     // Add more cases as needed
     default:
       console.log("Unhandled note type: " + type);
-      return "4"; // Default to quarter note if not handled
+      return "4."; // Default to quarter note if not handled
   }
 }
 
@@ -96,7 +96,15 @@ function noteToLilypond(note, textVIndex) {
     // Handle pitch
     const { pitch, stem } = note;
     const step = pitch[0].step[0];
+    const alter = pitch[0].alter ? pitch[0].alter[0] : null;
     const octave = pitch[0].octave[0];
+
+    let accidental = "";
+    if (alter === "1") {
+      accidental = "is"; // Sharp
+    } else if (alter === "-1") {
+      accidental = "es"; // Flat
+    }
 
     const stemDirection = stem ? stem[0]._ : "";
     let stemDirString;
@@ -138,7 +146,11 @@ function noteToLilypond(note, textVIndex) {
         octaveNum = "";
         break;
     }
-    lilypondNote += stemDirString + step.toLowerCase() + octaveNum;
+    lilypondNote += stemDirString + step.toLowerCase() + accidental + octaveNum;
+
+    if (accidental !== "") {
+      lilypondNote += "!";
+    }
 
     // Handle duration
     const { type } = note;
@@ -313,6 +325,12 @@ function notes_to_lilypond(notes, timeData) {
         tupletComplete = false;
 
         measureCode += `  }\n`; // Close the Voice block
+
+        measureCount++;
+
+        if (measureCount % 4 == 0) {
+          measureCode += `    \\break\n\n`;
+        }
       });
 
       if (measureNumber == maxMeasureNumber) {
@@ -503,12 +521,6 @@ function notes_to_lilypond(notes, timeData) {
         staff_code[index] += `      >>\n`;
         staff_code[index] += `      \\oneVoice\n`;
         staff_code[index] += `    }|\n\n`;
-
-        measureCount++;
-
-        if (measureCount % 8 == 0) {
-          staff_code[index] += `    \\break\n\n`;
-        }
 
         console.log(`\nSTAFF CODE #${index}: \n\n` + staff_code[index]);
       });
