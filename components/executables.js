@@ -11,7 +11,10 @@ async function runLilyPond(outputDir, filename) {
     "lilypond"
   );
   const command = `${lilyPondPath} -fpdf ${filename}`; //Change this line if lilypond is not firing off correctly
-
+    // Change to this if it doesnt work:
+    // const command = lilypond ${filename};
+    // OR
+    // const command = `${lilyPondPath} -fpdf ${filename}`;
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
       if (error) {
