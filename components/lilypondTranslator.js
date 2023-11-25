@@ -430,10 +430,6 @@ function notes_to_lilypond(notes, timeData) {
               break;
           }
 
-          if (breakMeasures[measureNumber]) {
-            staff_code[index] += `    \\break\n`;
-          }
-
           if (vIndex == 1) {
             staff_code[
               index
@@ -514,6 +510,14 @@ function notes_to_lilypond(notes, timeData) {
           lilynotes.forEach((note) => {
             staff_code[index] += `${note}  `;
           });
+          
+
+        
+          // Check if a break is needed
+          if (measureNumber % 4 === 0) {
+            staff_code[index] += "\\break\n";
+          }
+
 
           staff_code[index] += `\n        }\n`;
         });

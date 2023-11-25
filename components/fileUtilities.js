@@ -42,6 +42,17 @@ function deleteFiles(files) {
   });
 }
 
+function deletePDFOutput(uid) {
+  // filePath in the parent directory of the current script
+  const filePath = path.join(__dirname, '..', `${uid}.pdf`);
+
+  try {
+    fs.unlinkSync(filePath); // Deletes the file
+    console.log(`File ${filePath} deleted successfully`);
+  } catch (err) {
+      console.error(`Error while deleting file: ${err}`);
+  }
+}
 function extractAndDeleteMxlFiles(outputDir) {
   const files = fs.readdirSync(outputDir);
   files.forEach((file) => {
@@ -62,6 +73,7 @@ function extractAndDeleteMxlFiles(outputDir) {
 }
 
 module.exports = {
+  deletePDFOutput,
   convertPDFToPNG,
   deleteFiles,
   extractAndDeleteMxlFiles,

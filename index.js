@@ -27,6 +27,7 @@ const {
   convertPDFToPNG,
   deleteFiles,
   extractAndDeleteMxlFiles,
+  deletePDFOutput
 } = require("./components/fileUtilities");
 const { runAudiverisBatch, runLilyPond } = require("./components/executables");
 
@@ -234,6 +235,17 @@ app.post("/upload", async (req, res) => {
     const coordinateData = await fetchNoteCoordsAndClean(uid);
 
     const notes = totalNotes.flat();
+
+    deletePDFOutput(uid);
+
+    try {
+        // Delete the file
+        fs.unlinkSync(xmlFilePath);
+        console.log(`File ${xmlFilePath} has been deleted.`);
+        deleteClientOutputFolder(uid); // Proceed with the next step
+    } catch (error) {
+        console.error(`Error deleting file ${xmlFilePath}:`, error);
+    }
 
     //console.log(lilypond_code);
     res.json({ firebasePath, notes, coordinateData });
