@@ -209,11 +209,21 @@ function noteToLilypond(note, textVIndex) {
 
 let measureCount = 0;
 
-function notes_to_lilypond(notes, timeData) {
+function notes_to_lilypond(notes, timeData, collectionName) {
   const breakMeasures = {};
   let staff_code = []; // staff_code will be an array of strings, with each array member being the code for a given staff. These will be compiled together in lilypond_code.
   let lilypond_code = '\n\\version "2.24.1"\n\n';
   let multipleStaves = true;
+
+  lilypond_code += "\\header {\n";
+  lilypond_code += "  title = \\markup {\n";
+  lilypond_code += "    \\column {\n";
+  lilypond_code += `      "${collectionName}"\n`;
+  lilypond_code += `      \\vspace #2\n`;
+  lilypond_code += `    }\n`;
+  lilypond_code += `  }\n`;
+  lilypond_code += `}\n`;
+
   lilypond_code += "\\paper {\n";
   lilypond_code += "  ragged-right = ##f\n";
   lilypond_code += "}\n\n";
@@ -510,14 +520,11 @@ function notes_to_lilypond(notes, timeData) {
           lilynotes.forEach((note) => {
             staff_code[index] += `${note}  `;
           });
-          
 
-        
           // Check if a break is needed
           if (measureNumber % 4 === 0) {
             staff_code[index] += "\\break\n";
           }
-
 
           staff_code[index] += `\n        }\n`;
         });

@@ -27,7 +27,7 @@ const {
   convertPDFToPNG,
   deleteFiles,
   extractAndDeleteMxlFiles,
-  deletePDFOutput
+  deletePDFOutput,
 } = require("./components/fileUtilities");
 const { runAudiverisBatch, runLilyPond } = require("./components/executables");
 
@@ -98,8 +98,8 @@ function deleteClientOutputFolder(uid) {
   });
 }
 
-async function processLilyPond(notes, uid, timeData) {
-  const lilypond_code = notes_to_lilypond(notes, timeData);
+async function processLilyPond(notes, uid, timeData, collectionName) {
+  const lilypond_code = notes_to_lilypond(notes, timeData, collectionName);
   const lilyFileName = `${uid}.ly`;
 
   fs.writeFileSync(lilyFileName, lilypond_code);
@@ -192,7 +192,12 @@ app.post("/upload", async (req, res) => {
 
     console.log("PROCESSING...");
 
-    const pdfFilePath = await processLilyPond(totalNotes, uid, timeData);
+    const pdfFilePath = await processLilyPond(
+      totalNotes,
+      uid,
+      timeData,
+      req.body.collectionName
+    );
 
     const lyFilePath = path.join(__dirname, `${uid}.ly`);
     const xmlFilePath = path.join(
@@ -239,12 +244,12 @@ app.post("/upload", async (req, res) => {
     deletePDFOutput(uid);
 
     try {
-        // Delete the file
-        fs.unlinkSync(xmlFilePath);
-        console.log(`File ${xmlFilePath} has been deleted.`);
-        deleteClientOutputFolder(uid); // Proceed with the next step
+      // Delete the file
+      fs.unlinkSync(xmlFilePath);
+      console.log(`File ${xmlFilePath} has been deleted.`);
+      deleteClientOutputFolder(uid); // Proceed with the next step
     } catch (error) {
-        console.error(`Error deleting file ${xmlFilePath}:`, error);
+      console.error(`Error deleting file ${xmlFilePath}:`, error);
     }
 
     //console.log(lilypond_code);
